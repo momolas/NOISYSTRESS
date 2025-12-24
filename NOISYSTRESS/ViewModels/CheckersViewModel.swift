@@ -19,11 +19,16 @@ class CheckersViewModel {
     var selectedPosition: Position? = nil
     var validMoves: [Position] = []
 
+    private let ai = CheckersAI()
+
 	init() {
 		setupBoard()
 	}
 
     func handleTap(at position: Position) {
+        // Prevent player from moving if it's AI's turn
+        guard currentPlayer == .white else { return }
+
         if let selected = selectedPosition {
             if selected == position {
                 // Deselect if tapping the same piece
@@ -114,10 +119,39 @@ class CheckersViewModel {
 
     private func togglePlayer() {
         currentPlayer = (currentPlayer == .white) ? .black : .white
+
+        if currentPlayer == .black {
+            makeAIMove()
+        }
+    }
+
+    private func makeAIMove() {
+        Task.detached(priority: .userInitiated) { [weak self, board = self.board, currentPlayer = self.currentPlayer, ai = self.ai] in
+            // Simulate thinking time
+            try? await Task.sleep(for: .seconds(0.5))
+
+            guard let move = ai.bestMove(for: board, currentPlayer: currentPlayer) else {
+                // If AI cannot move, switch back or handle game over (not implemented yet)
+                await MainActor.run {
+                     self?.togglePlayer() // Simple fallback to skip turn if stuck, or game over should trigger
+                }
+                return
+            }
+
+            await MainActor.run {
+                self?.performAIMove(move)
+            }
+        }
+    }
+
+    private func performAIMove(_ move: CheckersMove) {
+        movePiece(from: move.from, to: move.to)
+        togglePlayer()
     }
 
 	func setDifficulty(_ difficulty: DifficultyLevel) {
 		aiDifficulty = difficulty
+        ai.updateDifficulty(to: difficulty)
 	}
 
 	func setupBoard() {
