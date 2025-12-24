@@ -8,79 +8,34 @@
 import Foundation
 import GameplayKit
 
-// Note: This AI logic is ported from the original ContentView.swift.
-// It requires `CheckersMove`, `CheckersGameModel`, and `CheckersAI` classes.
-// Currently commented out or structured to be enabled when fully integrated.
+// MARK: - Checkers Player
+class CheckersPlayer: NSObject, GKGameModelPlayer {
+    var playerId: Int
+    let player: Player
 
-/*
-class CheckersAI {
-	let strategist: GKMinmaxStrategist
-	var difficulty: DifficultyLevel
-
-	init(difficulty: DifficultyLevel) {
-		self.difficulty = difficulty
-		self.strategist = GKMinmaxStrategist()
-		configureStrategist()
-	}
-
-	private func configureStrategist() {
-		strategist.maxLookAheadDepth = difficulty.rawValue
-		strategist.randomSource = GKARC4RandomSource()
-	}
-
-	func updateDifficulty(to newDifficulty: DifficultyLevel) {
-		self.difficulty = newDifficulty
-		configureStrategist()
-	}
-
-	func bestMove(for board: [[Piece?]], currentPlayer: Player) -> CheckersMove? {
-		let gameModel = CheckersGameModel(board: board, currentPlayer: currentPlayer)
-		strategist.gameModel = gameModel
-
-		// Utilisation de GameplayKit pour récupérer les mouvements possibles
-		if let moves = strategist.gameModel?.gameModelUpdates(for: gameModel.currentPlayer) as? [CheckersMove] {
-			// Sélectionner le meilleur mouvement basé sur le score (ou autre critère)
-			return moves.max { $0.score < $1.score }
-		}
-		return nil  // Aucun mouvement valide trouvé
-	}
+    init(player: Player) {
+        self.player = player
+        self.playerId = (player == .white) ? 0 : 1
+        super.init()
+    }
 }
 
-class CheckersMove: GKGameModelUpdate {
-	var value: Int = 0 // Required by GKGameModelUpdate protocol (was 'score' in original, protocol requires 'value')
-	var from: Position
-	var to: Position
-
-	init(from: Position, to: Position) {
-		self.from = from
-		self.to = to
-	}
-}
-
+// MARK: - Checkers Game Model
 class CheckersGameModel: NSObject, GKGameModel {
-	var board: [[Piece?]]
-	var currentPlayer: Player
-	var _players: [GKGameModelPlayer]?
-
-	init(board: [[Piece?]], currentPlayer: Player) {
-		self.board = board
-		self.currentPlayer = currentPlayer
-        // Assuming Player can conform to GKGameModelPlayer or wrapped
-	}
-
-    // MARK: - GKGameModel Protocol Stubs
-    // The original code was missing some protocol requirements or had them implicit.
-    // Full implementation requires mapping Player to GKGameModelPlayer and implementing copy, etc.
-
-    var players: [GKGameModelPlayer]? {
-        // Return players
-        return nil
-    }
-
+    var board: [[Piece?]]
+    var currentPlayer: Player
+    var players: [GKGameModelPlayer]?
     var activePlayer: GKGameModelPlayer? {
-        // Return current player wrapper
-        return nil
+        return players?.first(where: { ($0 as? CheckersPlayer)?.player == currentPlayer })
     }
+
+    init(board: [[Piece?]], currentPlayer: Player) {
+        self.board = board
+        self.currentPlayer = currentPlayer
+        self.players = [CheckersPlayer(player: .white), CheckersPlayer(player: .black)]
+    }
+
+    // MARK: - GKGameModel Protocol
 
     func setGameModel(_ gameModel: GKGameModel) {
         if let model = gameModel as? CheckersGameModel {
@@ -90,38 +45,77 @@ class CheckersGameModel: NSObject, GKGameModel {
     }
 
     func isWin(for player: GKGameModelPlayer) -> Bool {
-        return false
+        guard let p = player as? CheckersPlayer else { return false }
+        return CheckersRules.checkForWinner(board: board) == p.player
     }
 
     func isLoss(for player: GKGameModelPlayer) -> Bool {
-        return false
+        guard let p = player as? CheckersPlayer else { return false }
+        let winner = CheckersRules.checkForWinner(board: board)
+        return winner != nil && winner != p.player
     }
 
-	// Retourne les mises à jour possibles du modèle pour un joueur donné
-	func gameModelUpdates(for player: GKGameModelPlayer) -> [GKGameModelUpdate]? {
-		var moves: [CheckersMove] = []
+    func gameModelUpdates(for player: GKGameModelPlayer) -> [GKGameModelUpdate]? {
+        guard let p = player as? CheckersPlayer else { return nil }
 
-		// Exemple : générer les mouvements possibles pour chaque pièce
-		for row in 0..<8 {
-			for col in 0..<8 {
-				// if let piece = board[row][col], piece.player matches player ...
-                    // generate moves
-			}
-		}
-		return moves
-	}
+        // Use CheckersRules to get valid moves
+        // Note: This returns valid *first steps*. GameplayKit will evaluate the resulting board.
+        // If a move is a multi-jump, the resulting board state should reflect the FULL turn.
+        // However, standard GKMinmax works step-by-step if the player doesn't change.
+        // For simplicity with this integration, we expose single steps.
+        // The ViewModel "Greedy Follow-up" handles the visual chain.
+        // Ideally, we would simulate the full chain here.
 
-	// Applique un mouvement au modèle de jeu
-	func apply(_ gameModelUpdate: GKGameModelUpdate) {
-		guard let move = gameModelUpdate as? CheckersMove else { return }
+        let moves = CheckersRules.getValidMoves(board: board, player: p.player)
+        return moves.isEmpty ? nil : moves
+    }
 
-		// Appliquer le mouvement (mettre à jour la position de la pièce)
-		board[move.from.row][move.from.column] = nil
-		board[move.to.row][move.to.column] = Piece(player: currentPlayer, type: .normal, position: move.to)
-	}
+    func apply(_ gameModelUpdate: GKGameModelUpdate) {
+        guard let move = gameModelUpdate as? CheckersMove else { return }
+
+        // Execute the move step
+        let wasCapture = CheckersRules.executeStep(board: &board, move: move)
+
+        // Handle Multi-Jump Logic for AI Simulation
+        // If capture, and can capture again, we must execute those too (Greedy approach for simulation)
+        if wasCapture {
+            var currentPos = move.to
+            while let piece = board[currentPos.row][currentPos.column],
+                  CheckersRules.canCaptureAgain(board: board, piece: piece, from: currentPos) {
+
+                let nextMoves = CheckersRules.getValidMoves(board: board, player: currentPlayer)
+                    .filter { $0.from == currentPos && CheckersRules.isCapture($0) }
+
+                if let nextMove = nextMoves.first {
+                    _ = CheckersRules.executeStep(board: &board, move: nextMove)
+                    currentPos = nextMove.to
+                } else {
+                    break
+                }
+            }
+        }
+
+        // Switch turn
+        currentPlayer = (currentPlayer == .white) ? .black : .white
+    }
 
     func score(for player: GKGameModelPlayer) -> Int {
-        return 0
+        guard let p = player as? CheckersPlayer else { return 0 }
+
+        var score = 0
+        for r in 0..<8 {
+            for c in 0..<8 {
+                if let piece = board[r][c] {
+                    let value = (piece.type == .king) ? 5 : 1
+                    if piece.player == p.player {
+                        score += value
+                    } else {
+                        score -= value
+                    }
+                }
+            }
+        }
+        return score
     }
 
     func copy(with zone: NSZone? = nil) -> Any {
@@ -129,4 +123,31 @@ class CheckersGameModel: NSObject, GKGameModel {
         return copy
     }
 }
-*/
+
+// MARK: - Checkers AI
+class CheckersAI {
+    let strategist: GKMinmaxStrategist
+    var difficulty: DifficultyLevel
+
+    init(difficulty: DifficultyLevel = .medium) {
+        self.difficulty = difficulty
+        self.strategist = GKMinmaxStrategist()
+        self.strategist.randomSource = GKARC4RandomSource()
+        updateDifficulty(to: difficulty)
+    }
+
+    func updateDifficulty(to newDifficulty: DifficultyLevel) {
+        self.difficulty = newDifficulty
+        self.strategist.maxLookAheadDepth = difficulty.rawValue
+    }
+
+    func bestMove(for board: [[Piece?]], currentPlayer: Player) -> CheckersMove? {
+        let model = CheckersGameModel(board: board, currentPlayer: currentPlayer)
+        strategist.gameModel = model
+
+        if let move = strategist.bestMove(for: model.activePlayer!) as? CheckersMove {
+            return move
+        }
+        return nil
+    }
+}
