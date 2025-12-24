@@ -122,6 +122,90 @@ class CheckersGameModel: NSObject, GKGameModel {
         let copy = CheckersGameModel(board: self.board, currentPlayer: self.currentPlayer)
         return copy
     }
+
+    // MARK: - Helpers
+
+    private func getValidMoves(for piece: Piece, at position: Position) -> [CheckersMove] {
+        var moves: [CheckersMove] = []
+        let directions = piece.type == .king ? [(-1, -1), (-1, 1), (1, -1), (1, 1)] : (piece.player == .white ? [(-1, -1), (-1, 1)] : [(1, -1), (1, 1)])
+
+        for (rowOffset, colOffset) in directions {
+            // Simple Move
+            let simplePos = Position(row: position.row + rowOffset, column: position.column + colOffset)
+            if isValidPosition(simplePos) && board[simplePos.row][simplePos.column] == nil {
+                moves.append(CheckersMove(from: position, to: simplePos))
+            }
+
+            // Capture Move
+            let jumpPos = Position(row: position.row + (rowOffset * 2), column: position.column + (colOffset * 2))
+            let midPos = Position(row: position.row + rowOffset, column: position.column + colOffset)
+
+            if isValidPosition(jumpPos) && board[jumpPos.row][jumpPos.column] == nil {
+                if let midPiece = board[midPos.row][midPos.column], midPiece.player != piece.player {
+                    moves.append(CheckersMove(from: position, to: jumpPos))
+                }
+            }
+        }
+
+        return moves
+    }
+
+    private func isValidPosition(_ position: Position) -> Bool {
+        return position.row >= 0 && position.row < 8 && position.column >= 0 && position.column < 8
+    }
+
+    private func isCapture(from: Position, to: Position) -> Bool {
+        return abs(to.row - from.row) == 2
+    }
+
+    private func executeMove(from: Position, to: Position) {
+        guard var piece = board[from.row][from.column] else { return }
+
+        // Handle Capture
+        if isCapture(from: from, to: to) {
+            let midRow = (from.row + to.row) / 2
+            let midCol = (from.column + to.column) / 2
+            board[midRow][midCol] = nil
+        }
+
+        board[from.row][from.column] = nil
+
+        // Promotion
+        if (piece.player == .white && to.row == 0) || (piece.player == .black && to.row == 7) {
+            piece.type = .king
+        }
+
+        piece.position = to
+        board[to.row][to.column] = piece
+    }
+}
+
+// MARK: - Checkers AI
+class CheckersAI {
+    let strategist: GKMinmaxStrategist
+    var difficulty: DifficultyLevel
+
+    init(difficulty: DifficultyLevel = .medium) {
+        self.difficulty = difficulty
+        self.strategist = GKMinmaxStrategist()
+        self.strategist.randomSource = GKARC4RandomSource()
+        updateDifficulty(to: difficulty)
+    }
+
+    func updateDifficulty(to newDifficulty: DifficultyLevel) {
+        self.difficulty = newDifficulty
+        self.strategist.maxLookAheadDepth = difficulty.rawValue
+    }
+
+    func bestMove(for board: [[Piece?]], currentPlayer: Player) -> CheckersMove? {
+        let model = CheckersGameModel(board: board, currentPlayer: currentPlayer)
+        strategist.gameModel = model
+
+        if let move = strategist.bestMove(for: model.activePlayer!) as? CheckersMove {
+            return move
+        }
+        return nil
+    }
 }
 
 // MARK: - Checkers AI
