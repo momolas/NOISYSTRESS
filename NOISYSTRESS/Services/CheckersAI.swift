@@ -207,31 +207,3 @@ class CheckersAI {
         return nil
     }
 }
-
-// MARK: - Checkers AI
-class CheckersAI {
-    let strategist: GKMinmaxStrategist
-    var difficulty: DifficultyLevel
-
-    init(difficulty: DifficultyLevel = .medium) {
-        self.difficulty = difficulty
-        self.strategist = GKMinmaxStrategist()
-        self.strategist.randomSource = GKARC4RandomSource()
-        updateDifficulty(to: difficulty)
-    }
-
-    func updateDifficulty(to newDifficulty: DifficultyLevel) {
-        self.difficulty = newDifficulty
-        self.strategist.maxLookAheadDepth = difficulty.rawValue
-    }
-
-    func bestMove(for board: [[Piece?]], currentPlayer: Player) -> CheckersMove? {
-        let model = CheckersGameModel(board: board, currentPlayer: currentPlayer)
-        strategist.gameModel = model
-
-        if let move = strategist.bestMove(for: model.activePlayer!) as? CheckersMove {
-            return move
-        }
-        return nil
-    }
-}
