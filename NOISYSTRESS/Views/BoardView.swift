@@ -18,11 +18,12 @@ struct BoardView: View {
                         let position = Position(row: row, column: col)
                         let isSelected = viewModel.selectedPosition == position
                         let isValidMove = viewModel.validMoves.contains(position)
+                        let isLastMove = viewModel.lastMove?.from == position || viewModel.lastMove?.to == position
 
                         Button {
                             viewModel.handleTap(at: position)
                         } label: {
-                            SquareView(piece: viewModel.board[row][col], position: position, isSelected: isSelected, isValidMove: isValidMove)
+                            SquareView(piece: viewModel.board[row][col], position: position, isSelected: isSelected, isValidMove: isValidMove, isLastMove: isLastMove)
                         }
                         .buttonStyle(.plain)
 					}

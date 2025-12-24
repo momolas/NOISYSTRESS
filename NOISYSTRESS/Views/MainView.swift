@@ -24,6 +24,18 @@ struct MainView: View {
                 .padding()
 			}
             .navigationTitle("Checkers")
+            .alert("Game Over", isPresented: Binding<Bool>(
+                get: { viewModel.winner != nil },
+                set: { _ in }
+            )) {
+                Button("New Game") {
+                    viewModel.setupBoard()
+                }
+            } message: {
+                if let winner = viewModel.winner {
+                    Text("\(winner.rawValue) wins!")
+                }
+            }
 		}
 	}
 }

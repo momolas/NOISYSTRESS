@@ -12,6 +12,7 @@ struct SquareView: View {
 	var position: Position
     var isSelected: Bool
     var isValidMove: Bool = false
+    var isLastMove: Bool = false
 
 	var body: some View {
 		ZStack {
@@ -19,6 +20,12 @@ struct SquareView: View {
 			Rectangle()
                 .foregroundStyle((position.row + position.column) % 2 == 0 ? .white : .black)
 				.aspectRatio(1, contentMode: .fit)
+
+            // Highlight last move
+            if isLastMove {
+                Rectangle()
+                    .foregroundStyle(Color.yellow.opacity(0.4))
+            }
 
             // Highlight selected square
             if isSelected {
