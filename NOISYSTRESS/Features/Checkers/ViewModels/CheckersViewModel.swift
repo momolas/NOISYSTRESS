@@ -17,6 +17,7 @@ class CheckersViewModel {
 
     // Will be used for move logic later
     var selectedPosition: Position? = nil
+    var validMoves: [Position] = []
 
 	init() {
 		setupBoard()
@@ -26,54 +27,75 @@ class CheckersViewModel {
         if let selected = selectedPosition {
             if selected == position {
                 // Deselect if tapping the same piece
-                selectedPosition = nil
+                deselectPiece()
             } else if let piece = board[position.row][position.column], piece.player == currentPlayer {
                 // Change selection to another piece of the same player
-                selectedPosition = position
+                selectPiece(at: position)
             } else if board[position.row][position.column] == nil {
                 // Attempt to move to an empty square
-                if isValidMove(from: selected, to: position) {
+                if validMoves.contains(position) {
                     movePiece(from: selected, to: position)
-                    selectedPosition = nil
+                    deselectPiece()
                     togglePlayer()
                 }
             }
         } else {
             // Select a piece if it belongs to the current player
             if let piece = board[position.row][position.column], piece.player == currentPlayer {
-                selectedPosition = position
+                selectPiece(at: position)
             }
         }
     }
 
-    private func isValidMove(from start: Position, to end: Position) -> Bool {
-        // Basic validation: check bounds (implicit by array access but good to be safe if public)
-        guard end.row >= 0 && end.row < 8 && end.column >= 0 && end.column < 8 else { return false }
+    private func selectPiece(at position: Position) {
+        selectedPosition = position
+        calculateValidMoves(for: position)
+    }
 
-        let rowDiff = end.row - start.row
-        let colDiff = end.column - start.column
+    private func deselectPiece() {
+        selectedPosition = nil
+        validMoves = []
+    }
 
-        // Must be diagonal by 1 column (for simple move)
-        // TODO: Implement capture logic (jump over opponent)
-        guard abs(colDiff) == 1 else { return false }
+    private func calculateValidMoves(for position: Position) {
+        validMoves = []
+        guard let piece = board[position.row][position.column] else { return }
 
-        guard let piece = board[start.row][start.column] else { return false }
+        let directions = piece.type == .king ? [(-1, -1), (-1, 1), (1, -1), (1, 1)] : (piece.player == .white ? [(-1, -1), (-1, 1)] : [(1, -1), (1, 1)])
 
-        if piece.type == .king {
-            // Kings can move up or down 1 step
-            return abs(rowDiff) == 1
-        } else {
-            // Normal pieces move forward only
-            if piece.player == .white {
-                return rowDiff == -1 // White moves up (decreasing indices)
-            } else {
-                return rowDiff == 1 // Black moves down (increasing indices)
+        for (rowOffset, colOffset) in directions {
+            // Check simple move
+            let simpleMove = Position(row: position.row + rowOffset, column: position.column + colOffset)
+            if isValidPosition(simpleMove) && board[simpleMove.row][simpleMove.column] == nil {
+                validMoves.append(simpleMove)
+            }
+
+            // Check capture move
+            let jumpMove = Position(row: position.row + (rowOffset * 2), column: position.column + (colOffset * 2))
+            let midPos = Position(row: position.row + rowOffset, column: position.column + colOffset)
+
+            if isValidPosition(jumpMove) && board[jumpMove.row][jumpMove.column] == nil {
+                if let midPiece = board[midPos.row][midPos.column], midPiece.player != piece.player {
+                    validMoves.append(jumpMove)
+                }
             }
         }
+    }
+
+    private func isValidPosition(_ position: Position) -> Bool {
+        return position.row >= 0 && position.row < 8 && position.column >= 0 && position.column < 8
     }
 
     private func movePiece(from start: Position, to end: Position) {
         guard var piece = board[start.row][start.column] else { return }
+
+        // Handle Capture
+        let rowDiff = end.row - start.row
+        if abs(rowDiff) == 2 {
+            let capturedRow = start.row + (rowDiff / 2)
+            let capturedCol = start.column + (end.column - start.column) / 2
+            board[capturedRow][capturedCol] = nil
+        }
 
         // Remove from old position
         board[start.row][start.column] = nil

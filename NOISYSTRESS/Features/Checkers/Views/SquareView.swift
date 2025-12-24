@@ -11,6 +11,7 @@ struct SquareView: View {
 	var piece: Piece?
 	var position: Position
     var isSelected: Bool
+    var isValidMove: Bool = false
 
 	var body: some View {
 		ZStack {
@@ -23,6 +24,13 @@ struct SquareView: View {
             if isSelected {
                 Rectangle()
                     .foregroundStyle(Color.blue.opacity(0.5))
+            }
+
+            // Highlight valid move
+            if isValidMove {
+                Circle()
+                    .foregroundStyle(Color.green.opacity(0.5))
+                    .padding(20)
             }
 
 			if let piece = piece {

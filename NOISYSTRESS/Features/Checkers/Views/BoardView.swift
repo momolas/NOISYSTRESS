@@ -17,11 +17,12 @@ struct BoardView: View {
 					ForEach(0..<8, id: \.self) { col in
                         let position = Position(row: row, column: col)
                         let isSelected = viewModel.selectedPosition == position
+                        let isValidMove = viewModel.validMoves.contains(position)
 
                         Button {
                             viewModel.handleTap(at: position)
                         } label: {
-                            SquareView(piece: viewModel.board[row][col], position: position, isSelected: isSelected)
+                            SquareView(piece: viewModel.board[row][col], position: position, isSelected: isSelected, isValidMove: isValidMove)
                         }
                         .buttonStyle(.plain)
 					}
