@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct Position: Hashable {
+struct Position: Hashable, Sendable {
 	let row: Int
 	let column: Int
 }

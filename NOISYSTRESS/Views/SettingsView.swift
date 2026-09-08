@@ -16,12 +16,17 @@ struct SettingsView: View {
 				.font(.headline)
 
 			Picker("Niveau", selection: $selectedDifficulty) {
-				Text("Facile").tag(DifficultyLevel.easy)
-				Text("Normal").tag(DifficultyLevel.medium)
-				Text("Difficile").tag(DifficultyLevel.hard)
+				ForEach(DifficultyLevel.allCases) { level in
+					Text(level.title).tag(level)
+				}
 			}
 			.pickerStyle(.segmented)
-			.padding()
+			.padding(.horizontal)
 		}
 	}
+}
+
+#Preview {
+	@Previewable @State var difficulty: DifficultyLevel = .medium
+	SettingsView(selectedDifficulty: $difficulty)
 }

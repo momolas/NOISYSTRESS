@@ -30,6 +30,16 @@ struct BoardView: View {
 				}
 			}
 		}
-		.border(Color.black, width: 2)
+		.clipShape(.rect(cornerRadius: 12))
+		.overlay(
+			RoundedRectangle(cornerRadius: 12)
+				.stroke(Color.primary.opacity(0.15), lineWidth: 2)
+		)
+		.shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
+		.padding(.horizontal)
 	}
+}
+
+#Preview {
+	BoardView(viewModel: CheckersViewModel())
 }

@@ -10,11 +10,20 @@ import Observation
 
 @MainActor
 @Observable
-class CheckersViewModel {
+final class CheckersViewModel {
     var board: [[Piece?]] = Array(repeating: Array(repeating: nil, count: 8), count: 8)
     var currentPlayer: Player = .white
-    var aiDifficulty: DifficultyLevel = .medium
+    var aiDifficulty: DifficultyLevel = .medium {
+        didSet {
+            ai.updateDifficulty(to: aiDifficulty)
+        }
+    }
     var winner: Player? = nil
+    
+    var isGameOver: Bool {
+        get { winner != nil }
+        set { if !newValue { winner = nil } }
+    }
 
     // Interaction state
     var selectedPosition: Position? = nil
@@ -25,6 +34,7 @@ class CheckersViewModel {
     private var mustCaptureWithPosition: Position? = nil
 
     private let ai = CheckersAI()
+    private var aiTask: Task<Void, Never>?
 
     init() {
         setupBoard()
@@ -75,7 +85,7 @@ class CheckersViewModel {
 
     private func calculateValidMoves(for position: Position) {
         validMoves = []
-        guard let piece = board[position.row][position.column] else { return }
+        guard board[position.row][position.column] != nil else { return }
 
         // Get all legal moves for the player (global context)
         let allMoves = CheckersRules.getValidMoves(board: board, player: currentPlayer)
@@ -113,7 +123,7 @@ class CheckersViewModel {
 
     private func finishTurn() {
         mustCaptureWithPosition = nil
-        winner = CheckersRules.checkForWinner(board: board)
+        winner = CheckersRules.checkForWinner(board: board, currentPlayer: currentPlayer)
 
         if winner == nil {
             togglePlayer()
@@ -129,43 +139,31 @@ class CheckersViewModel {
     }
 
     private func makeAIMove() {
-        Task.detached(priority: .userInitiated) { [weak self, board = self.board, currentPlayer = self.currentPlayer, ai = self.ai] in
+        aiTask?.cancel()
+        aiTask = Task { [weak self] in
             // Simulate thinking time
             try? await Task.sleep(for: .seconds(0.5))
 
-            // CheckersRules is used inside AI, but here we just need the move
-            guard let move = ai.bestMove(for: board, currentPlayer: currentPlayer) else {
-                await MainActor.run {
-                    self?.finishTurn() // No moves? pass turn or lose. (Rules engine should handle no moves = loss ideally)
-                }
+            guard !Task.isCancelled, let self, self.winner == nil, self.currentPlayer == .black else { return }
+
+            guard let move = self.ai.bestMove(for: self.board, currentPlayer: self.currentPlayer) else {
+                self.finishTurn()
                 return
             }
 
-            await MainActor.run {
-                self?.performAIMoveSequence(move)
-            }
+            guard !Task.isCancelled, self.winner == nil, self.currentPlayer == .black else { return }
+            self.performAIMoveSequence(move)
         }
     }
 
     private func performAIMoveSequence(_ move: CheckersMove) {
-        // AI returns a "best move". Ideally if it's a multi-jump, CheckersAI should return the full sequence.
-        // Currently CheckersAI returns single steps OR assumes GameplayKit handles state.
-        // If we want AI to do multi-jumps, we need to loop here.
-
-        var currentMove = move
-        var keepGoing = true
-
-        // Execute the first move
-        let wasCapture = CheckersRules.executeStep(board: &board, move: currentMove)
-        lastMove = (currentMove.from, currentMove.to)
+        // Execute the move
+        let wasCapture = CheckersRules.executeStep(board: &board, move: move)
+        lastMove = (move.from, move.to)
 
         if wasCapture {
-             // Greedy follow-up: If AI made a capture, check if it can capture again.
-             // Ideally AI should have planned this. For now, we force a greedy follow-up
-             // using the same logic as human (pick any valid capture).
-             // Since AI returned a single step, we have to find the next step ourselves.
-
-            var currentPos = currentMove.to
+            // Greedy follow-up: If AI made a capture, check if it can capture again.
+            var currentPos = move.to
             while let piece = board[currentPos.row][currentPos.column],
                   CheckersRules.canCaptureAgain(board: board, piece: piece, from: currentPos) {
 
@@ -174,11 +172,6 @@ class CheckersViewModel {
                     .filter { $0.from == currentPos && CheckersRules.isCapture($0) }
 
                 if let nextMove = nextMoves.first {
-                    // Small delay for visual effect
-                    // Note: blocking main thread is bad, but we are in a async context? No, we are on MainActor.
-                    // Ideally we should use a Task/Timer.
-                    // For simplicity, we just execute immediately.
-
                     _ = CheckersRules.executeStep(board: &board, move: nextMove)
                     lastMove = (nextMove.from, nextMove.to)
                     currentPos = nextMove.to
@@ -193,10 +186,12 @@ class CheckersViewModel {
 
     func setDifficulty(_ difficulty: DifficultyLevel) {
         aiDifficulty = difficulty
-        ai.updateDifficulty(to: difficulty)
     }
 
     func setupBoard() {
+        aiTask?.cancel()
+        aiTask = nil
+
         // Clear board
         board = Array(repeating: Array(repeating: nil, count: 8), count: 8)
         selectedPosition = nil

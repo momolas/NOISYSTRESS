@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum Player: String {
+enum Player: String, Sendable, CaseIterable {
 	case white = "White"
 	case black = "Black"
 }

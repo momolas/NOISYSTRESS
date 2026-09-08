@@ -78,15 +78,19 @@ struct CheckersRules {
         return captured
     }
 
-    static func checkForWinner(board: [[Piece?]]) -> Player? {
+    static func checkForWinner(board: [[Piece?]], currentPlayer: Player? = nil) -> Player? {
         let whiteCount = board.joined().compactMap { $0 }.filter { $0.player == .white }.count
         let blackCount = board.joined().compactMap { $0 }.filter { $0.player == .black }.count
 
         if whiteCount == 0 { return .black }
         if blackCount == 0 { return .white }
 
-        // Check for blocked moves could be added here (if a player has pieces but no moves, they lose).
-        // For now, simple piece count is good enough for basic implementation.
+        if let player = currentPlayer {
+            let moves = getValidMoves(board: board, player: player)
+            if moves.isEmpty {
+                return (player == .white) ? .black : .white
+            }
+        }
         return nil
     }
 

@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct Piece {
+struct Piece: Sendable, Equatable {
 	let player: Player
 	var type: PieceType
 	var position: Position

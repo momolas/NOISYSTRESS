@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum PieceType {
+enum PieceType: Sendable {
 	case normal
 	case king
 }

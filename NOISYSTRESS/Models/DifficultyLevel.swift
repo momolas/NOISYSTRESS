@@ -7,8 +7,18 @@
 
 import Foundation
 
-enum DifficultyLevel: Int {
+enum DifficultyLevel: Int, Sendable, CaseIterable, Identifiable {
 	case easy = 1
 	case medium = 3
 	case hard = 5
+	
+	var id: Int { rawValue }
+	
+	var title: String {
+		switch self {
+		case .easy: "Facile"
+		case .medium: "Normal"
+		case .hard: "Difficile"
+		}
+	}
 }
