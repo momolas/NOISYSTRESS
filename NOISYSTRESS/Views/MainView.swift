@@ -40,6 +40,7 @@ struct MainView: View {
 				.padding(.bottom)
 			}
 			.navigationTitle("Dames")
+			.toolbarTitleDisplayMode(.inline)
 			.alert("Partie terminée", isPresented: $bindableViewModel.isGameOver) {
 				Button("Rejouer") {
 					viewModel.setupBoard()
@@ -49,6 +50,11 @@ struct MainView: View {
 					Text(winner == .white ? "Félicitations, vous avez gagné !" : "L'IA a gagné la partie !")
 				}
 			}
+			.sensoryFeedback(.success, trigger: viewModel.winner != nil) { _, isWon in
+				isWon
+			}
+			.sensoryFeedback(.selection, trigger: viewModel.selectedPosition)
+			.sensoryFeedback(.impact(weight: .light), trigger: viewModel.aiDifficulty)
 		}
 	}
 }

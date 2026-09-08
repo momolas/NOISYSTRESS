@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct BoardView: View {
-    @Bindable var viewModel: CheckersViewModel
+    let viewModel: CheckersViewModel
 
 	var body: some View {
 		VStack(spacing: 0) {

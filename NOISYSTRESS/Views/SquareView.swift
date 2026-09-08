@@ -11,8 +11,22 @@ struct SquareView: View {
 	let piece: Piece?
 	let position: Position
 	let isSelected: Bool
-	var isValidMove: Bool = false
-	var isLastMove: Bool = false
+	let isValidMove: Bool
+	let isLastMove: Bool
+
+	init(
+		piece: Piece?,
+		position: Position,
+		isSelected: Bool,
+		isValidMove: Bool = false,
+		isLastMove: Bool = false
+	) {
+		self.piece = piece
+		self.position = position
+		self.isSelected = isSelected
+		self.isValidMove = isValidMove
+		self.isLastMove = isLastMove
+	}
 
 	private var isDarkSquare: Bool {
 		(position.row + position.column) % 2 != 0
@@ -84,4 +98,13 @@ struct SquareView: View {
 		}
 		return text
 	}
+}
+
+#Preview("Dame Blanche") {
+	SquareView(
+		piece: Piece(player: .white, type: .king, position: Position(row: 0, column: 1)),
+		position: Position(row: 0, column: 1),
+		isSelected: true
+	)
+	.frame(width: 80, height: 80)
 }
